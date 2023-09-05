@@ -1,0 +1,26 @@
+main = (a: int): array => {
+    complex: object = {
+        yay: 4,
+        complex: {
+            wtf: "wtf",
+            complex2: {
+                omg: "what!!!",
+                noway: (a: array): array => {
+                    return a;
+                }
+            },
+            comp: (a: array): array => {
+                return a;
+            }
+        },
+        lcomp: (a: array): array => {
+            return a;
+        }
+    };
+
+    print(complex.lcomp);
+
+    return complex.complex.comp([1, 0]);
+};
+
+return main(1);
