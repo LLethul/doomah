@@ -18,8 +18,6 @@ main = (a: int): array => {
         }
     };
 
-    print(complex.lcomp);
-
     return complex.complex.comp([1, 0]);
 };
 
