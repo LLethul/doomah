@@ -1,18 +1,13 @@
-# C++ CMake Starter Template 
+# doomah
+doomah nuts fit in yo mouth?
 
-## Requirements 
+## the worst lang ever
+this was just a passion project cuz i was bored, made in 3 dayz
 
-* C++ 
-* CMake 
-* Clangd ( for code completion ) 
-
-## Compiling & Running 
-
-* build a folder in root called **build**  and cd into it
-  
-  `mkdir build && cd build` 
-
-* run `cmake ../` 
-* then run `make` 
-* the executable will be **output** 
-* run `./output`
+## features
+- objects, arrays
+- variables
+- types
+- functions
+- c functions
+- scopes
