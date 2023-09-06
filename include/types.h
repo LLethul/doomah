@@ -9,6 +9,7 @@ typedef enum struct dtype {
     object,
     array,
     nil,
+    boolean,
     cfunction,
 } dtype_t;
 
@@ -34,7 +35,11 @@ inline dtype_t str_to_dtype(std::string dt) {
     }
 
     if (dt == "none") {
-        return dtype::array;
+        return dtype::nil;
+    }
+
+    if (dt == "boolean") {
+        return dtype::boolean;
     }
 
     return dtype::nil;
@@ -62,6 +67,9 @@ inline std::string dtype_to_str(dtype_t dt) {
 
         case dtype::cfunction:
             return "cfunc";
+
+        case dtype::boolean:
+            return "bool";
     }
 }
 

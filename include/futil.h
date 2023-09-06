@@ -5,7 +5,7 @@
 #include <string>
 
 namespace futil {
-    inline std::string read_file(char* path) {
+    inline std::string read_file(const char* path) {
         std::string fin, line;
         std::ifstream f(path);
 
@@ -20,7 +20,7 @@ namespace futil {
         return fin;
     }
 
-    inline void write_file(char* path, std::string txt) {
+    inline void write_file(const char* path, std::string txt) {
         std::ofstream f;
         f.open(path);
         f << txt;

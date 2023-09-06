@@ -15,6 +15,14 @@ inline std::map<std::string, token_type_t> KEYWORDS;
 namespace lexer {
     inline void init_kw_def() {
         KEYWORDS["return"] = token_type::ret;
+        KEYWORDS["import"] = token_type::import;
+        KEYWORDS["as"] = token_type::as;
+        KEYWORDS["if"] = token_type::if_t;
+        KEYWORDS["while"] = token_type::while_t;
+        KEYWORDS["else"] = token_type::else_t;
+
+        KEYWORDS["true"] = token_type::true_t;
+        KEYWORDS["false"] = token_type::false_t;
     }
     
     inline std::vector<token_t> tokenize(const std::string& str) {
@@ -84,10 +92,33 @@ namespace lexer {
                     tokens.push_back(token(token_type::f_assign, "=>", pos)); continue;
                 }
 
+                if (str.at(i + 1) == '=') {
+                    i++; pos.col++;
+                    tokens.push_back(token(token_type::binaryop, "==", pos)); continue;
+                }
+
                 tokens.push_back(token(token_type::equals, "=", pos)); continue;
             }
 
             if (c == '+' || c == '-' || c == '*' || c == '/') {
+                tokens.push_back(token(token_type::binaryop, std::string(1, c), pos)); continue;
+            }
+
+            if (c == '>') {
+                if (str.at(i + 1) == '=') {
+                    i++; pos.col++;
+                    tokens.push_back(token(token_type::binaryop, ">=", pos)); continue;
+                }
+
+                tokens.push_back(token(token_type::binaryop, std::string(1, c), pos)); continue;
+            }
+
+            if (c == '<') {
+                if (str.at(i + 1) == '=') {
+                    i++; pos.col++;
+                    tokens.push_back(token(token_type::binaryop, "<=", pos)); continue;
+                }
+
                 tokens.push_back(token(token_type::binaryop, std::string(1, c), pos)); continue;
             }
 

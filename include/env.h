@@ -1,13 +1,14 @@
 #ifndef __ENV_H__
 #define __ENV_H__
 
-#include "runtime.h"
 #include <map>
 #include <utility>
+#include "runtime.h"
 
 typedef struct environment {
     std::shared_ptr<environment> parent;
     std::map<std::string, rt_value*> variables;
+    void* interpret;
 
     environment(environment* parent = nullptr) : parent(parent) {}
 
@@ -28,7 +29,15 @@ typedef struct environment {
         }
 
         // Return nullptr if the variable is not found
-        return new rt_value();
+        return nullptr; // Changed to return nullptr for better error handling
+    }
+
+    void* get_interpreter() {
+        if (interpret == nullptr && parent != nullptr) return parent->get_interpreter();
+        else {
+            if (interpret != nullptr) return interpret;
+            return nullptr;
+        }
     }
 } environment_t;
 

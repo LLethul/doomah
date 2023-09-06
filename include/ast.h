@@ -15,7 +15,6 @@ typedef enum struct ast_type {
         ast_noop,
 
         ast_assign,
-        ast_def_type,
 
         ast_string_expr,
         ast_num_expr,
@@ -29,6 +28,9 @@ typedef enum struct ast_type {
         ast_arrindex,
         ast_function,
         ast_import,
+        ast_if,
+        ast_while,
+        ast_bool
 } ast_type_t;
 
 struct ast_node {
@@ -39,6 +41,7 @@ struct ast_node {
     std::string symbol;
     float number;
     dtype_t data_type;
+    ast_node* svalue;
 
     ast_node(ast_type_t type, position_t p) : type(type), pos(p) {};
     ast_node() : type(
@@ -55,14 +58,12 @@ struct ast_node {
         this->children.push_back(new ast_node());
         this->children.push_back(new ast_node());
         this->children.push_back(new ast_node());
+        this->data_type = dtype::cfunction;
     };
 };
 
 inline std::string ast_to_string(ast_type_t type) {
     switch (type) {
-        case ast_type::ast_def_type:
-            return "type definition";
-
         case ast_type::ast_return:
             return "return statement";
 
@@ -107,6 +108,15 @@ inline std::string ast_to_string(ast_type_t type) {
 
         case ast_type::ast_import:
             return "import statement";
+
+        case ast_type::ast_bool:
+            return "boolean expression";
+
+        case ast_type::ast_if:
+            return "if statement";
+        
+        case ast_type::ast_while:
+            return "while statement";
     }
 }
 
@@ -131,6 +141,11 @@ inline void print_node(ast_node* node, int tl) {
         printf("%sVALUE:\n", idents.c_str());
         print_node(node->value, tl + 1);
     }
+
+    if (node->svalue != nullptr) {
+        printf("%sSVALUE:\n", idents.c_str());
+        print_node(node->value, tl + 1);
+    }
 }
 
 inline void print_node(ast_node* node) {
@@ -152,6 +167,11 @@ inline void print_node(ast_node* node) {
 
     if (node->value != nullptr) {
         printf("%sVALUE:\n", idents.c_str());
+        print_node(node->value, 1);
+    }
+
+    if (node->svalue != nullptr) {
+        printf("%sSVALUE:\n", idents.c_str());
         print_node(node->value, 1);
     }
 }

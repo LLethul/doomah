@@ -1,20 +1,51 @@
 #include "interpreter.h"
 #include "ast.h"
+#include "builtin.h"
 #include "env.h"
+#include "futil.h"
 #include "parser.h"
+#include "runtime.h"
 #include "types.h"
+#include <cstdio>
 #include <error.h>
+#include <string>
 #include <vector>
 #include <iostream>
 
-rt_value* print(std::vector<rt_value*> args) {
-    std::string fin;
-    for (rt_value* param : args) {
-        fin += param->ts()+" ";
+rt_value* print(std::vector<rt_value*> args, void* env) {
+    //std::string fin;
+    for (int i = 0; i < args.size(); i++) {
+        auto elem = args[i];
+        if (i != args.size() - 1) {
+            elem->out(); printf(", ");
+        } else {
+            elem->out(); printf("\n");
+        }
     }
 
-    printf("%s\n", fin.c_str());
+    //printf("%s\n", fin.c_str());
     return new rt_value();
+}
+
+std::string repeat(std::string str, const std::size_t n)
+{
+    if (n == 0) {
+        str.clear();
+        str.shrink_to_fit();
+        return str;
+    } else if (n == 1 || str.empty()) {
+        return str;
+    }
+    const auto period = str.size();
+    if (period == 1) {
+        str.append(n - 1, str.front());
+        return str;
+    }
+    str.reserve(period * n);
+    std::size_t m {2};
+    for (; m < n; m *= 2) str += str;
+    str.append(str.c_str(), (n - (m / 2)) * period);
+    return str;
 }
 
 #include <functional>
@@ -24,16 +55,17 @@ rt_value_t* interpreter::run()
 {
     rt_value_t* rt_val;
     environment_t* scope = new environment();
+    def_on_env(scope);
+    scope->interpret = this;
 
     // rlly hacky but
     rt_value* arg0;
 
-    scope->assign("print", new rt_value(print));
-    std::function<rt_value*(std::vector<rt_value*>)> cfunc = print;
+    scope->assign("print", new rt_value((std::function<rt_value*(std::vector<rt_value*>, void*)>)print));
 
     ast_node* root = p.parse();
-    print_node(root);
-    rt_val = eval(root, scope);
+    //print_node(root);
+    rt_val = eval_scope_samenv(root, scope);
 
     return rt_val;
 }
@@ -73,6 +105,24 @@ rt_value_t* interpreter::eval(ast_node* node, environment_t* env)
 
         case ast_type::ast_member:
             return eval_member(node, env);
+
+        case ast_type::ast_noop:
+            return new rt_value();
+
+        case ast_type::ast_arrindex:
+            return eval_arrindex(node, env);
+
+        case ast_type::ast_import:
+            return eval_import(node, env);
+
+        case ast_type::ast_binop:
+            return eval_binary(node, env);
+
+        case ast_type::ast_if:
+            return eval_if(node, env);
+
+        case ast_type::ast_while:
+            return eval_while(node, env);
     }
     return new rt_value();
 }
@@ -80,6 +130,7 @@ rt_value_t* interpreter::eval(ast_node* node, environment_t* env)
 rt_value_t* interpreter::eval_assign(ast_node* node, environment_t* env)
 {
     rt_value* value = eval(node->value, env);
+    if (value->type != node->data_type) error(string_format("expected type %s for %s, got %s", dtype_to_str(node->data_type).c_str(), node->symbol.c_str(), dtype_to_str(value->type).c_str()), node->pos, source).spit();
     env->assign(node->symbol, value);
     return new rt_value();
 }
@@ -124,20 +175,64 @@ rt_value_t* interpreter::eval_scope(ast_node* node, environment_t* env)
     return rt_val;
 }
 
+rt_value_t* interpreter::eval_scope_samenv(ast_node* node, environment_t* env)
+{
+    rt_value_t* rt_val;
+
+    for (ast_node* elem : node->children) {
+        if (elem->type == ast_type::ast_return) rt_val = eval(elem, env);
+        else eval(elem, env);
+    }
+
+    return rt_val;
+}
+
 rt_value_t* interpreter::eval_call(ast_node* node, environment_t* env)
 {
     rt_value_t* scope = env->get_var(node->symbol);
     environment_t* cenv = new environment(env);
+    std::vector<rt_value*> args;
 
     for (int i = 0; i < scope->proto->children.size(); i++) {
         ast_node* arg = node->value->children[i];
+        if (arg == nullptr) break;
         ast_node* id = scope->proto->children[i];
-        cenv->assign(id->symbol, eval(arg, env));
+        if (id == nullptr) break;
+        rt_value* evaluated = eval(arg, env);
+        if (evaluated->type != id->data_type && scope->proto->data_type != dtype::cfunction) error(string_format("expected type %s for argument %s, got %s", dtype_to_str(id->data_type).c_str(), id->symbol.c_str(), dtype_to_str(evaluated->type).c_str()), node->pos, source).spit();
+        args.push_back(evaluated);
+        cenv->assign(id->symbol, evaluated);
     }
 
     rt_value_t* rt_val;
-    std::vector<ast_node*> body = scope->body->children;
+    dtype_t ftype = scope->proto->data_type;
 
+    if (ftype != dtype::cfunction) {
+        std::vector<ast_node*> body = scope->body->children;
+        if (body.size() > 0) {
+            for (ast_node* elem : body) {
+                if (elem->type == ast_type::ast_return) rt_val = eval(elem, cenv);
+                else eval(elem, cenv);
+            }
+        }
+    } else {
+        rt_val = scope->cfunc(args, env);
+    }
+
+    return rt_val;
+}
+
+rt_value_t* interpreter::call_func(rt_value* func, std::vector<rt_value*> args, environment_t* env)
+{
+    environment_t* cenv = new environment(env);
+    for (int i = 0; i < func->proto->children.size(); i++) {
+        ast_node* id = func->proto->children[i];
+        //print_node(func->proto);
+        cenv->assign(id->symbol, args[i]);
+    }
+
+    rt_value_t* rt_val;
+    std::vector<ast_node*> body = func->body->children;
     if (body.size() > 0) {
         for (ast_node* elem : body) {
             if (elem->type == ast_type::ast_return) rt_val = eval(elem, cenv);
@@ -160,15 +255,16 @@ rt_value_t* interpreter::eval_call(ast_node* node, environment_t* env, rt_value*
         ast_node* id = scope->proto->children[i];
         if (id == nullptr) break;
         rt_value* evaluated = eval(arg, env);
+        if (evaluated->type != id->data_type && scope->proto->data_type != dtype::cfunction) error(string_format("expected type %s for argument %s, got %s", dtype_to_str(id->data_type).c_str(), id->symbol.c_str(), dtype_to_str(evaluated->type).c_str()), node->pos, source).spit();
         args.push_back(evaluated);
         cenv->assign(id->symbol, evaluated);
     }
 
     rt_value_t* rt_val;
-    std::vector<ast_node*> body = scope->body->children;
     dtype_t ftype = scope->proto->data_type;
 
     if (ftype != dtype::cfunction) {
+        std::vector<ast_node*> body = scope->body->children;
         if (body.size() > 0) {
             for (ast_node* elem : body) {
                 if (elem->type == ast_type::ast_return) rt_val = eval(elem, cenv);
@@ -176,7 +272,7 @@ rt_value_t* interpreter::eval_call(ast_node* node, environment_t* env, rt_value*
             }
         }
     } else {
-        rt_val = scope->cfunc(args);
+        rt_val = scope->cfunc(args, env);
     }
 
     return rt_val;
@@ -331,5 +427,127 @@ rt_value_t* interpreter::eval_member(ast_node* node, environment_t* env) {
         error(string_format("not an object"), node->pos, source).spit();
     }
     
+    return new rt_value();
+}
+
+rt_value_t* interpreter::eval_arrindex(ast_node* node, environment_t* env)
+{
+    rt_value_t* arr = env->get_var(node->symbol);
+    if (arr->type != dtype::array) {
+        if (arr->type != dtype::object) error(string_format("not an array or object"), node->pos, source).spit();
+        rt_value_t* idx = eval(node->value, env);
+        if (idx->type != dtype::string) error(string_format("not an indexable type for object"), node->pos, source).spit();
+        return arr->children[idx->str];
+    }
+
+    if (node->value->type == ast_type::ast_num_expr) {
+        return arr->arr[node->value->number];
+    } else {
+        rt_value_t* idx = eval(node->value, env);
+        if (idx->type != dtype::integer) error(string_format("not an indexable type for array"), node->pos, source).spit();
+        return arr->arr[idx->num];
+    }
+}
+
+rt_value_t* interpreter::eval_import(ast_node* node, environment_t* env)
+{
+    ast_node* path = node->value;
+    ast_node* id = node->svalue;
+
+    rt_value* strpath = eval(path, env);
+
+    if (strpath->type == dtype::string) {
+        std::string contents = futil::read_file(strpath->str.c_str());
+        interpreter_t i(contents);
+        rt_value* res = i.run();
+        env->assign(id->symbol, res);
+    } else {
+        error("invalid arguments to import", path->pos, source).spit();
+    }
+
+    return new rt_value();
+}
+
+rt_value_t* interpreter::eval_binary(ast_node* node, environment_t* env)
+{
+    rt_value* left = eval(node->value, env);
+    rt_value* right = eval(node->svalue, env);
+    ///print_node(node->svalue);
+
+    if (left->type == dtype::integer && right->type == dtype::integer) {
+        std::string op = node->symbol;
+
+        if (op == "+") return new rt_value(left->num + right->num);
+        if (op == "-") return new rt_value(left->num - right->num);
+        if (op == "/") return new rt_value(left->num / right->num);
+        if (op == "*") return new rt_value(left->num * right->num);
+        if (op == "==") return new rt_value(left->num == right->num);
+        if (op == ">=") return new rt_value(left->num >= right->num);
+        if (op == "<=") return new rt_value(left->num <= right->num);
+        if (op == "<") return new rt_value(left->num < right->num);
+        if (op == ">") return new rt_value(left->num > right->num);
+    }
+
+    if (left->type == dtype::string && right->type == dtype::string) {
+        std::string op = node->symbol;
+
+        if (op == "+") return new rt_value(left->str + right->str);
+        if (op == "-") error("cannot sub string by string", node->pos, source).spit();
+        if (op == "/") error("cannot divide string by string", node->pos, source).spit();
+        if (op == "*") error("cannot multiply string by string", node->pos, source).spit();
+        if (op == "==") return new rt_value(left->str == right->str);
+        if (op == ">=") error("cannot check if string is greater than or equal to string", node->pos, source).spit();
+        if (op == "<=") error("cannot check if string is less than or equal to string", node->pos, source).spit();
+        if (op == "<") error("cannot check if string is less than string", node->pos, source).spit();
+        if (op == ">") error("cannot check if string is greater than string", node->pos, source).spit();
+    }
+
+    if (left->type == dtype::string && right->type == dtype::integer) {
+        std::string op = node->symbol;
+
+        if (op == "+") return new rt_value(left->str + std::to_string(right->num));
+        if (op == "-") error("cannot sub string by number", node->pos, source).spit();
+        if (op == "/") error("cannot divide string by number", node->pos, source).spit();
+        if (op == "*") return new rt_value(repeat(left->str, (int)right->num));
+        if (op == ">=") error("cannot check if string is greater than or equal to number", node->pos, source).spit();
+        if (op == "<=") error("cannot check if string is less than or equal to number", node->pos, source).spit();
+        if (op == "<") error("cannot check if string is less than number", node->pos, source).spit();
+        if (op == ">") error("cannot check if string is greater than number", node->pos, source).spit();
+    }
+
+    return new rt_value();
+}
+
+rt_value_t* interpreter::eval_if(ast_node* node, environment_t* env)
+{
+    rt_value* evaluated = eval(node->svalue, env);
+    if (evaluated->type == dtype::boolean) {
+        if (evaluated->boolean == true) {
+            eval_scope_samenv(node->value, env);
+        }
+    } else {
+        if (evaluated->type != dtype::nil) {
+            eval_scope_samenv(node->value, env);
+        }
+    }
+
+    return new rt_value();
+}
+
+rt_value_t* interpreter::eval_while(ast_node* node, environment_t* env)
+{
+    rt_value* evaluated = eval(node->svalue, env);
+    if (evaluated->type == dtype::boolean) {
+        while (evaluated->boolean == true) {
+            eval_scope_samenv(node->value, env);
+            evaluated = eval(node->svalue, env);
+        }
+    } else {
+        while (evaluated->type != dtype::nil) {
+            eval_scope_samenv(node->value, env);
+            evaluated = eval(node->svalue, env);
+        }
+    }
+
     return new rt_value();
 }

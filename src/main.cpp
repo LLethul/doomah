@@ -14,8 +14,7 @@
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        argv[1] = "examples/tes.du";
-        argv[2] = "tes.cpp";
+        argv[1] = "examples/basic.du";
     }
 
     std::string fcontents = futil::read_file(argv[1]);
@@ -27,7 +26,6 @@ int main(int argc, char** argv) {
     interpreter_t inter = interpreter(fcontents);
     rt_value_t* eval = inter.run();
     //eval->out();
-    printf("%s\n", eval->ts().c_str());
 
     // std::string ccode = cpp_frontend::from_root(idk);
     // futil::write_file(argv[2], ccode);

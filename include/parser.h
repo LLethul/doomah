@@ -65,16 +65,38 @@ typedef struct parser {
         return root;
     }
 
+    ast_node* parse_if() {
+        token_t start = eat();
+        ast_node* condition = parse_expr();
+        ast_node* body = parse_scope();
+        
+        ast_node* ifst = new ast_node(ast_type::ast_if, start.pos);
+        ifst->svalue = condition;
+        ifst->value = body;
+
+        return ifst;
+    }
+
+    ast_node* parse_while() {
+        token_t start = eat();
+        ast_node* condition = parse_expr();
+        ast_node* body = parse_scope();
+        
+        ast_node* ifst = new ast_node(ast_type::ast_while, start.pos);
+        ifst->svalue = condition;
+        ifst->value = body;
+
+        return ifst;
+    }
+
     ast_node* parse_id() {
         token_t id = eat();
         if (match(token_type_t::equals)) {
             eat();
             ast_node* node = new ast_node(ast_type_t::ast_assign, id.pos);
             node->symbol = id.value;
-            
-            if (match(token_type::lparen)) {
-                node->value = parse_expr();
-            }
+            node->value = parse_expr();
+            node->data_type = node->value->data_type;
 
             return node;
         }
@@ -105,6 +127,9 @@ typedef struct parser {
             ast_node* args = parse_list();
             node->type = ast_type::ast_call;
             node->value = args;
+            //print_node(node);
+
+            return node;
         }
 
         if (match(token_type::colon)) {
@@ -134,18 +159,35 @@ typedef struct parser {
         return node;
     }
 
+    ast_node* parse_import() {
+        eat();
+        ast_node* path = parse_expr();
+        expect(token_type::as);
+        ast_node* id = parse_expr();
+
+        if (path->type != ast_type::ast_string_expr)
+            error("invalid import argument", path->pos, source).spit();
+
+        if (id->type != ast_type::ast_identifier)
+            error("invalid import argument", id->pos, source).spit();
+
+        ast_node* inode = new ast_node(ast_type::ast_import, path->pos);
+        inode->value = path;
+        inode->svalue = id;
+
+        return inode;
+    }
+
     ast_node* parse_fn() {
-        ast_node* node = parse_list();
+        token_t start = eat();
+        ast_node* proto = parse_list();
+        ast_node* fbody = parse_scope();
+        ast_node* fblock = new ast_node(ast_type::ast_function, start.pos);
+        fblock->value = fbody;
+        fblock->children = proto->children;
+        fblock->data_type = dtype::func;
 
-        if (match(token_type::f_assign)) {
-            eat();
-            ast_node* body = parse_scope();
-            node->data_type = node->data_type;
-            node->value = body;
-            node->type = ast_type::ast_function;
-        }
-
-        return node;
+        return fblock;
     }
     
     ast_node* parse_binary() {
@@ -157,16 +199,68 @@ typedef struct parser {
             token_t op = eat();
             ast_node* left = new ast_node(ast_type::ast_num_expr, num.pos);
             left->number = std::stoi(num.value);
-            print_node(left);
+            //print_node(left);
+            //print_tok(peek());
             ast_node* right = parse_expr();
 
-            print_node(right);
+            //print_node(right);
 
             node->type = ast_type::ast_binop;
-            node->children.push_back(left);
-            node->children.push_back(right);
+            node->value = left;
+            node->svalue = right;
             node->symbol = op.value;
         }
+
+        return node;
+    }
+
+    ast_node* parse_str_binary() {
+        token_t str = eat();
+        ast_node* node = new ast_node(ast_type::ast_string_expr, str.pos);
+        node->symbol = str.value;
+
+        if (match(token_type::binaryop)) {
+            token_t op = eat();
+            ast_node* left = new ast_node(ast_type::ast_string_expr, str.pos);
+            left->symbol = str.value;
+            //print_node(left);
+            //print_tok(peek());
+            ast_node* right = parse_expr();
+
+            //print_node(right);
+
+            node->type = ast_type::ast_binop;
+            node->value = left;
+            node->svalue = right;
+            node->symbol = op.value;
+        }
+
+        //print_node(node);
+
+        return node;
+    }
+
+    ast_node* parse_id_binary() {
+        ast_node* node = parse_id();
+
+        if (match(token_type::binaryop)) {
+            token_t op = eat();
+            ast_node* left = new ast_node(ast_type::ast_identifier, node->pos);
+            left->symbol = node->symbol;
+
+            //print_node(left);
+            //print_tok(peek());
+            ast_node* right = parse_expr();
+
+            //print_node(right);
+
+            node->type = ast_type::ast_binop;
+            node->value = left;
+            node->svalue = right;
+            node->symbol = op.value;
+        }
+
+        //print_node(node);
 
         return node;
     }
@@ -254,12 +348,11 @@ typedef struct parser {
 
         switch (at.type) {
             case token_type::identifier:
-                val = parse_id();
+                val = parse_id_binary();
                 break;
 
             case token_type::str_literal:
-                val = new ast_node(ast_type_t::ast_string_expr, at.pos);
-                val->symbol = eat().value;
+                val = parse_str_binary();
                 break;
 
             case token_type::num_literal:
@@ -267,6 +360,13 @@ typedef struct parser {
                 break;
 
             case token_type::lparen:
+                eat();
+                val = parse_expr();
+                expect(token_type::rparen);
+                //val = parse_fn();
+                break;
+
+            case token_type::f_assign:
                 val = parse_fn();
                 break;
 
@@ -281,6 +381,18 @@ typedef struct parser {
             case token_type::ret:
                 val = new ast_node(ast_type::ast_return, eat().pos);
                 val->value = parse_expr();
+                break;
+
+            case token_type::import:
+                val = parse_import();
+                break;
+
+            case token_type::if_t:
+                val = parse_if();
+                break;
+
+            case token_type::while_t:
+                val = parse_while();
                 break;
 
             default: error(string_format("unexpected %s at %d:%d", token_to_str(at.type).c_str(), at.pos.ln, at.pos.col), at.pos, source).spit();

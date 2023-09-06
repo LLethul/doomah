@@ -1,0 +1,16 @@
+if 2 == 1 + (0 + 1) {
+    print("yay")
+};
+
+a = 0;
+while a < 10 {
+    a = a + 1;
+    print(a, a < 10);
+}
+
+print(1 == 2 - 1);
+
+a: array = [1, 2, "wtf"];
+array.foreach(a, => (b) {
+    print(b);
+})

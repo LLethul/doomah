@@ -8,7 +8,9 @@ typedef enum struct token_type {
     identifier, str_literal, num_literal,
     binaryop, equals, 
     semi, eof, colon, lparen, rparen, lcbrace, rcbrace, lbrace, rbrace, comma, f_assign, dot,
-    import,
+    import, as,
+    if_t, while_t, else_t,
+    true_t, false_t
 } token_type_t;
 
 typedef struct token {
@@ -78,8 +80,26 @@ inline std::string token_to_str(token_type_t type) {
         case token_type::dot:
             return "dot";
 
+        case token_type::as:
+            return "as statement";
+
         case token_type::import:
             return "import statement";
+
+        case token_type::if_t:
+            return "if expression";
+
+        case token_type::while_t:
+            return "while expression";
+
+        case token_type::else_t:
+            return "else expression";
+
+        case token_type::true_t:
+            return "true";
+
+        case token_type::false_t:
+            return "false";
     }
 }
 
