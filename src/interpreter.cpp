@@ -4,6 +4,7 @@
 #include "env.h"
 #include "futil.h"
 #include "parser.h"
+#include "position.h"
 #include "runtime.h"
 #include "types.h"
 #include <cstdio>
@@ -72,6 +73,7 @@ rt_value_t* interpreter::run()
 
 rt_value_t* interpreter::eval(ast_node* node, environment_t* env)
 {
+    if (node == nullptr) return new rt_value();
     switch (node->type) {
         case ast_type::ast_identifier:
             return env->get_var(node->symbol);
@@ -187,51 +189,138 @@ rt_value_t* interpreter::eval_scope_samenv(ast_node* node, environment_t* env)
     return rt_val;
 }
 
+// rt_value_t* interpreter::eval_call(ast_node* node, environment_t* env)
+// {
+//     rt_value_t* scope = env->get_var(node->symbol);
+//     environment_t* cenv = new environment(env);
+//     std::vector<rt_value*> args;
+
+//     for (int i = 0; i < scope->proto->children.size(); i++) {
+//         ast_node* arg = node->value->children[i];
+//         if (arg == nullptr) break;
+//         ast_node* id = scope->proto->children[i];
+//         if (id == nullptr) break;
+//         rt_value* evaluated = eval(arg, env);
+//         if (evaluated->type != id->data_type && scope->proto->data_type != dtype::cfunction) error(string_format("expected type %s for argument %s, got %s", dtype_to_str(id->data_type).c_str(), id->symbol.c_str(), dtype_to_str(evaluated->type).c_str()), node->pos, source).spit();
+//         args.push_back(evaluated);
+//         cenv->assign(id->symbol, evaluated);
+//     }
+
+//     rt_value_t* rt_val;
+//     dtype_t ftype = scope->proto->data_type;
+
+//     if (ftype != dtype::cfunction) {
+//         std::vector<ast_node*> body = scope->body->children;
+//         if (body.size() > 0) {
+//             for (ast_node* elem : body) {
+//                 if (elem->type == ast_type::ast_return) rt_val = eval(elem, cenv);
+//                 else eval(elem, cenv);
+//             }
+//         }
+//     } else {
+//         rt_val = scope->cfunc(args, env);
+//     }
+
+//     return rt_val;
+// }
+
 rt_value_t* interpreter::eval_call(ast_node* node, environment_t* env)
 {
     rt_value_t* scope = env->get_var(node->symbol);
-    environment_t* cenv = new environment(env);
-    std::vector<rt_value*> args;
 
-    for (int i = 0; i < scope->proto->children.size(); i++) {
-        ast_node* arg = node->value->children[i];
-        if (arg == nullptr) break;
-        ast_node* id = scope->proto->children[i];
-        if (id == nullptr) break;
-        rt_value* evaluated = eval(arg, env);
-        if (evaluated->type != id->data_type && scope->proto->data_type != dtype::cfunction) error(string_format("expected type %s for argument %s, got %s", dtype_to_str(id->data_type).c_str(), id->symbol.c_str(), dtype_to_str(evaluated->type).c_str()), node->pos, source).spit();
-        args.push_back(evaluated);
-        cenv->assign(id->symbol, evaluated);
-    }
+    if (scope && scope->type == dtype::func || scope->type == dtype::cfunction) {
+        environment_t* cenv = new environment(env);
+        std::vector<rt_value*> args;
 
-    rt_value_t* rt_val;
-    dtype_t ftype = scope->proto->data_type;
-
-    if (ftype != dtype::cfunction) {
-        std::vector<ast_node*> body = scope->body->children;
-        if (body.size() > 0) {
-            for (ast_node* elem : body) {
-                if (elem->type == ast_type::ast_return) rt_val = eval(elem, cenv);
-                else eval(elem, cenv);
+        for (int i = 0; i < scope->proto->children.size(); i++) {
+            ast_node* arg = node->value->children[i];
+            if (arg == nullptr) break;
+            ast_node* id = scope->proto->children[i];
+            if (id == nullptr) break;
+            rt_value* evaluated = eval(arg, env);
+            if (evaluated->type != id->data_type && scope->type != dtype::cfunction) {
+                error(string_format("expected type %s for argument %s, got %s", dtype_to_str(id->data_type).c_str(), id->symbol.c_str(), dtype_to_str(evaluated->type).c_str()), node->pos, source).spit();
+                return nullptr;
             }
+            args.push_back(evaluated);
+            cenv->assign(id->symbol, evaluated);
         }
-    } else {
-        rt_val = scope->cfunc(args, env);
-    }
 
-    return rt_val;
+        rt_value_t* rt_val;
+        dtype_t ftype = scope->proto->data_type;
+
+        if (ftype != dtype::cfunction) {
+            std::vector<ast_node*> body = scope->body->children;
+            if (body.size() > 0) {
+                for (ast_node* elem : body) {
+                    if (elem->type == ast_type::ast_return) rt_val = eval(elem, cenv);
+                    else eval(elem, cenv);
+                }
+            }
+        } else {
+            rt_val = scope->cfunc(args, env);
+        }
+
+        return rt_val;
+    } else {
+        // Handle the case where the function is not found
+        error("function not found: " + node->symbol, node->pos, source).spit();
+        return nullptr;
+    }
 }
+
+// rt_value_t* interpreter::call_func(rt_value* func, std::vector<rt_value*> args, environment_t* env)
+// {
+//     environment_t* cenv = new environment(env);
+//     for (int i = 0; i < func->proto->children.size(); i++) {
+//         ast_node* id = func->proto->children[i];
+//         //print_node(func->proto);
+//         cenv->assign(id->symbol, args[i]);
+//     }
+
+//     rt_value_t* rt_val;
+//     std::vector<ast_node*> body = func->body->children;
+//     if (body.size() > 0) {
+//         for (ast_node* elem : body) {
+//             if (elem->type == ast_type::ast_return) rt_val = eval(elem, cenv);
+//             else eval(elem, cenv);
+//         }
+//     }
+
+//     return rt_val;
+// }
 
 rt_value_t* interpreter::call_func(rt_value* func, std::vector<rt_value*> args, environment_t* env)
 {
     environment_t* cenv = new environment(env);
-    for (int i = 0; i < func->proto->children.size(); i++) {
+
+    // Check if func and func->proto have valid elements
+    if (!func || !func->proto) {
+        error("invalid function or function prototype", func ? func->body->pos : position(), source).spit();
+        return nullptr;
+    }
+
+    // Check if args size matches the number of parameters in func->proto
+    if (args.size() != func->proto->children.size()) {
+        error("mismatched number of arguments and function parameters", func->proto->pos, source).spit();
+        delete cenv;  // Clean up allocated environment
+        return nullptr;
+    }
+
+    // Assign arguments to parameters in the new environment
+    for (int i = 0; i < args.size(); i++) {
         ast_node* id = func->proto->children[i];
-        //print_node(func->proto);
+        if (!id) {
+            error("invalid function parameter", func->proto->pos, source).spit();
+            delete cenv;  // Clean up allocated environment
+            return nullptr;
+        }
         cenv->assign(id->symbol, args[i]);
     }
 
-    rt_value_t* rt_val;
+    rt_value_t* rt_val = nullptr;  // Initialize to nullptr
+
+    // Evaluate the function body
     std::vector<ast_node*> body = func->body->children;
     if (body.size() > 0) {
         for (ast_node* elem : body) {
@@ -240,8 +329,11 @@ rt_value_t* interpreter::call_func(rt_value* func, std::vector<rt_value*> args, 
         }
     }
 
+    delete cenv;  // Clean up allocated environment
+
     return rt_val;
 }
+
 
 rt_value_t* interpreter::eval_call(ast_node* node, environment_t* env, rt_value* func)
 {
@@ -250,6 +342,7 @@ rt_value_t* interpreter::eval_call(ast_node* node, environment_t* env, rt_value*
     std::vector<rt_value*> args;
 
     for (int i = 0; i < scope->proto->children.size(); i++) {
+        if (node->value->children.size() <= i && scope->proto->data_type != dtype::cfunction) error(string_format("expected %d args, got %d", scope->proto->children.size(), node->value->children.size()), node->pos, source).spit();
         ast_node* arg = node->value->children[i];
         if (arg == nullptr) break;
         ast_node* id = scope->proto->children[i];

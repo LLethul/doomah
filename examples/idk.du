@@ -1,21 +1,23 @@
-
 # example function
 myfunc: func = => (paramA: str, paramB: int) {
+    print("Inside myfunc");
     return paramA * paramB;
 }
 
 # example function call
-print(myfunc("hey ", 3));
+result: str = myfunc("hey ", 3);
+print("Result of myfunc: " + result);
 
 # example if statement
 if 2 == 1 + 1 {
     # example condition
-    print(1==1);
+    print("2 is equal to 1 + 1");
 }
 
 # example while loop (prints lol 10 times)
 temp0: int = 0;
 while temp0 < 10 {
+    print("Current value of temp0: " + temp0);
     temp0 = temp0 + 1;
     print("lol");
 }
@@ -28,14 +30,16 @@ myobj: object = {
     }
 };
 
+print("myobj:");
 print(myobj);
 
-# array methods
-myarr: array = [1, 2, 3]
-array.push(myarr, 4)
-arrpop: int = array.pop(myarr);
+# example array
+myarr: array = [1, 2, 3, 4, 5];
+print("myarr:");
 print(myarr);
 
-array.foreach(myarr, => (a) {
-    print(a);
-})
+# example string concatenation
+str1: str = "Hello, ";
+str2: str = "world!";
+resultstr: str = str1 + str2;
+print(resultstr);

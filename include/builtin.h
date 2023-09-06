@@ -34,17 +34,57 @@ inline rt_value* array_pop(std::vector<rt_value*> args, void* env) {
 }
 
 inline rt_value* array_foreach(std::vector<rt_value*> args, void* env) {
+    // Check if args contains at least two elements
+    if (args.size() < 2) {
+        // Handle the error appropriately (e.g., return an error code)
+        return new rt_value();
+    }
+
     rt_value* arr = args[0];
     rt_value* func = args[1];
-    environment_t* env_cast = static_cast<environment*>(env);
-    interpreter_t* inter =  static_cast<interpreter*>(env_cast->get_interpreter());
 
+    // Ensure that arr and func pointers are valid
+    if (!arr || !func) {
+        // Handle the error appropriately (e.g., return an error code)
+        return new rt_value();
+    }
+
+    // Check if arr is a valid rt_value with an array
+    if (arr->type != dtype::array) {
+        // Handle the error appropriately (e.g., return an error code)
+        return new rt_value();
+    }
+
+    environment_t* env_cast = static_cast<environment*>(env);
+
+    // Ensure that env_cast is a valid pointer
+    if (!env_cast) {
+        // Handle the error appropriately (e.g., return an error code)
+        return new rt_value();
+    }
+
+    interpreter_t* inter = static_cast<interpreter*>(env_cast->get_interpreter());
+
+    // Ensure that inter is a valid pointer
+    if (!inter) {
+        // Handle the error appropriately (e.g., return an error code)
+        return new rt_value();
+    }
+
+    // Iterate through the array and call the function for each element
     for (rt_value* idx : arr->arr) {
+        // Check if idx is a valid pointer
+        if (!idx) {
+            // Handle the error appropriately (e.g., return an error code)
+            return new rt_value();
+        }
+
         inter->call_func(func, {idx}, env_cast);
     }
 
     return new rt_value();
 }
+
 
 inline void def_on_env(environment_t* env) {
     // std::map<std::string, rt_value*> stringbase = {

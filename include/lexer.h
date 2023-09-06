@@ -100,6 +100,11 @@ namespace lexer {
                 tokens.push_back(token(token_type::equals, "=", pos)); continue;
             }
 
+            if (c == '#') {
+                while (c != '\n') { i++; pos.col++; c = str.at(i); }
+                continue; 
+            }
+
             if (c == '+' || c == '-' || c == '*' || c == '/') {
                 tokens.push_back(token(token_type::binaryop, std::string(1, c), pos)); continue;
             }

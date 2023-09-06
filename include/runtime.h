@@ -124,18 +124,7 @@ typedef struct rt_value {
             }
 
             case dtype::object: {
-                std::string fin = "{\n";
-                auto it = children.begin();
-
-                while (it != children.end()) {
-                    std::string key = it->first;
-                    rt_value* value = it->second;
-
-                    fin += string_format("%s: %s,\n", key.c_str(), value->ts(1).c_str());
-                    it++;
-                }
-
-                printf("%s", (fin + "}").c_str());
+                printf("%s", this->ts().c_str());
                 break;
             }
 
