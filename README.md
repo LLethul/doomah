@@ -11,3 +11,6 @@ this was just a passion project cuz i was bored, made in 3 dayz
 - functions
 - c functions
 - scopes
+- if statements, while statements
+- conditions
+- members
